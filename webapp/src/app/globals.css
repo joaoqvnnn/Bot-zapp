@@ -1,0 +1,445 @@
+/* ============================================================
+   Larizinha Store — WebApp Next.js (globals.css)
+   - Variáveis de tema (light + dark)
+   - Reset base
+   - Utilitários próprios
+   - Estilos do Telegram WebApp
+   - Scrollbar custom
+   ============================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   🎨 VARIÁVEIS DE TEMA — LIGHT
+   ============================================================ */
+@layer base {
+  :root {
+    /* ---- Base ---- */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 4%;
+
+    /* ---- Cartões / Popovers ---- */
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+
+    /* ---- Cores primárias (Larizinha) ---- */
+    --primary: 142 71% 45%;           /* verde #22c55e */
+    --primary-foreground: 355 100% 97%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --accent: 217 91% 60%;            /* azul #3b82f6 */
+    --accent-foreground: 210 20% 98%;
+
+    /* ---- Feedback ---- */
+    --destructive: 0 84% 60%;         /* vermelho #ef4444 */
+    --destructive-foreground: 0 0% 98%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    /* ---- Bordas ---- */
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 142 71% 45%;
+
+    /* ---- Layout ---- */
+    --radius: 0.75rem;
+
+    /* ---- Cores customizadas (Larizinha) ---- */
+    --lariz-bg: #ffffff;
+    --lariz-card: #f8f9fa;
+    --lariz-text: #111827;
+    --lariz-text-muted: #6b7280;
+    --lariz-border: #e5e7eb;
+  }
+
+  /* ============================================================
+     🎨 VARIÁVEIS DE TEMA — DARK
+     ============================================================ */
+  .dark {
+    --background: 220 15% 7%;         /* #0f1115 */
+    --foreground: 220 14% 96%;
+
+    --card: 220 14% 13%;              /* #1c2028 */
+    --card-foreground: 220 14% 96%;
+    --popover: 220 14% 13%;
+    --popover-foreground: 220 14% 96%;
+
+    --primary: 142 71% 45%;           /* verde mantém */
+    --primary-foreground: 144 100% 97%;
+
+    --secondary: 220 10% 18%;
+    --secondary-foreground: 220 14% 96%;
+
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --muted: 220 10% 15%;
+    --muted-foreground: 220 9% 65%;
+
+    --border: 220 10% 22%;
+    --input: 220 10% 22%;
+    --ring: 142 71% 45%;
+
+    /* Cores customizadas (Larizinha dark) */
+    --lariz-bg: #0f1115;
+    --lariz-card: #1c2028;
+    --lariz-text: #f0f0f0;
+    --lariz-text-muted: #9ca3af;
+    --lariz-border: #374151;
+  }
+}
+
+/* ============================================================
+   🧼 RESET BASE
+   ============================================================ */
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  body {
+    /* Bloqueia overscroll horizontal e bounce no iOS */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  /* Impede zoom em double-tap no iOS */
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  /* Remove spinners de input number */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Foco visível apenas para teclado */
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Remove decoração de links */
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  /* Botões reset */
+  button {
+    @apply cursor-pointer;
+  }
+}
+
+/* ============================================================
+   🎨 UTILITÁRIOS LARIZINHA
+   ============================================================ */
+@layer components {
+  /* ---- Card padrão ---- */
+  .lariz-card {
+    @apply rounded-2xl border border-border bg-card p-4 shadow-sm;
+  }
+
+  /* ---- Glassmorphism (cabeçalho flutuante) ---- */
+  .lariz-glass {
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    background: hsl(var(--card) / 0.75);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  /* ---- Gradiente Larizinha ---- */
+  .lariz-gradient {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent)) 100%
+    );
+  }
+
+  .lariz-gradient-text {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ---- Botão primário ---- */
+  .lariz-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3
+           text-base font-semibold transition-all duration-150
+           active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .lariz-btn-primary {
+    @apply lariz-btn bg-primary text-primary-foreground
+           shadow-lg shadow-primary/20 hover:brightness-110;
+  }
+
+  .lariz-btn-secondary {
+    @apply lariz-btn border border-border bg-secondary text-secondary-foreground
+           hover:brightness-110;
+  }
+
+  .lariz-btn-danger {
+    @apply lariz-btn bg-destructive text-destructive-foreground
+           hover:brightness-110;
+  }
+
+  .lariz-btn-ghost {
+    @apply lariz-btn text-foreground/80 hover:bg-secondary;
+  }
+
+  /* ---- Pílulas de status ---- */
+  .lariz-pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1
+           text-xs font-semibold;
+  }
+  .lariz-pill-success {
+    @apply lariz-pill bg-primary/15 text-primary;
+  }
+  .lariz-pill-warn {
+    @apply lariz-pill bg-yellow-500/15 text-yellow-500;
+  }
+  .lariz-pill-error {
+    @apply lariz-pill bg-destructive/15 text-destructive;
+  }
+  .lariz-pill-neutral {
+    @apply lariz-pill bg-secondary text-foreground/70;
+  }
+
+  /* ---- Divisor ---- */
+  .lariz-divider {
+    @apply my-3 h-px w-full bg-border;
+  }
+
+  /* ---- Linha de item (produto, transação, etc) ---- */
+  .lariz-row {
+    @apply flex items-center justify-between gap-3 rounded-xl px-3 py-3
+           transition-colors hover:bg-secondary/40 active:bg-secondary/70;
+  }
+
+  /* ---- Input estilizado ---- */
+  .lariz-input {
+    @apply w-full rounded-xl border border-border bg-card px-4 py-3
+           text-base text-foreground placeholder:text-muted-foreground
+           focus:border-primary focus:ring-1 focus:ring-primary;
+  }
+
+  /* ---- Esqueleto (loading) ---- */
+  .lariz-skeleton {
+    @apply animate-pulse rounded-lg bg-secondary/60;
+  }
+
+  /* ---- Barra de progresso ---- */
+  .lariz-progress {
+    @apply h-2 w-full overflow-hidden rounded-full bg-secondary;
+  }
+  .lariz-progress-fill {
+    @apply h-full rounded-full bg-primary transition-all duration-300;
+  }
+
+  /* ---- Rodapé fixo com safe-area ---- */
+  .lariz-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .lariz-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* ---- Preço / valor destacado ---- */
+  .lariz-price {
+    @apply font-mono text-lg font-bold tracking-tight text-primary;
+  }
+}
+
+/* ============================================================
+   📜 SCROLLBAR CUSTOM
+   ============================================================ */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+
+  /* Esconde scrollbar mantendo scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Truncar 2 linhas */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* ============================================================
+   📱 TELEGRAM WEBAPP
+   ============================================================ */
+@layer base {
+  /* Respeita o viewport height dinâmico do Telegram */
+  html {
+    height: 100%;
+    /* Evita o "puxar pra baixo" dentro do WebApp */
+    overflow: hidden;
+  }
+  body {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ajusta padding quando o Telegram abre o viewport */
+  :root {
+    --tg-viewport-height: 100vh;
+    --tg-viewport-stable-height: 100vh;
+  }
+
+  /* Botões do Telegram */
+  .tg-btn {
+    @apply lariz-btn-primary w-full;
+  }
+
+  /* Esconde a barra superior de "Voltar" do Telegram */
+  .tg-hide-back {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   🎞️ ANIMAÇÕES
+   ============================================================ */
+@layer utilities {
+  .animate-in-fade {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-in-slide {
+    animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-bounce-soft {
+    animation: bounce-soft 1.4s ease-in-out infinite;
+  }
+
+  @keyframes bounce-soft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--secondary)) 0%,
+      hsl(var(--muted)) 50%,
+      hsl(var(--secondary)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/* ============================================================
+   🌗 PREFERÊNCIAS DO SISTEMA
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   🖨️ PRINT
+   ============================================================ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
