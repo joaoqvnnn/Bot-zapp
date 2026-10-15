@@ -1,0 +1,50 @@
+# ============================================================
+# Larizinha Store — WebApp .dockerignore
+# ============================================================
+
+# Dependências
+node_modules
+.pnp
+.pnp.js
+
+# Build anterior
+.next
+out
+build
+dist
+
+# Git
+.git
+.gitignore
+
+# Ambientes (NUNCA subir para imagem)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Docs
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# IDEs / Sistema
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Testes / CI
+coverage
+.nyc_output
+.github
+.gitlab-ci.yml
