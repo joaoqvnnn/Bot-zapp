@@ -1,0 +1,5 @@
+cd Bot-zapp/bot
+echo "3.12.7" > .python-version
+git add .python-version
+git commit -m "fix: python 3.12 dentro de bot/"
+git push
