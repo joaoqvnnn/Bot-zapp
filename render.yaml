@@ -1,0 +1,582 @@
+# ============================================================
+# Larizinha Store — Render Blueprint
+# Provisiona: PostgreSQL + Redis (Key Value) + Bot (webhook) +
+# Worker (automações) + API (TypeScript) + WebApp (Next.js)
+# ============================================================
+# Deploy: conecte este repositório no Render → "New Blueprint"
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # 🗄️ POSTGRESQL
+  # ----------------------------------------------------------
+  - type: pserv
+    name: larizinha-postgres
+    plan: free
+    region: oregon
+    databaseName: larizinha
+    databaseUser: larizinha
+    ipAllowList: []  # só serviços internos
+    postgresMajorVersion: "16"
+
+  # ----------------------------------------------------------
+  # ⚡ REDIS (Key Value)
+  # ----------------------------------------------------------
+  - type: redis
+    name: larizinha-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # só serviços internos
+
+  # ----------------------------------------------------------
+  # 🤖 BOT (Aiogram — webhook)
+  # ----------------------------------------------------------
+  - type: web
+    name: larizinha-bot
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./bot/Dockerfile
+    dockerContext: ./bot
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # ---- Ambiente ----
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: false
+      - key: APP_NAME
+        value: Larizinha Store
+      - key: APP_VERSION
+        value: 1.0.0
+      - key: TIMEZONE
+        value: America/Sao_Paulo
+      - key: DEFAULT_LANGUAGE
+        value: pt-BR
+      - key: DEFAULT_CURRENCY
+        value: BRL
+
+      # ---- Telegram ----
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: BOT_ID
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: MAIN_ADMIN_ID
+        sync: false
+      - key: REQUIRED_CHANNEL_ID
+        sync: false
+      - key: REQUIRED_CHANNEL_USERNAME
+        sync: false
+      - key: REQUIRED_GROUP_ID
+        sync: false
+      - key: REQUIRED_GROUP_USERNAME
+        sync: false
+      - key: SUPPORT_SILENT_LINK
+        sync: false
+
+      # ---- PostgreSQL (linkado automaticamente) ----
+      - key: DATABASE_URL
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+      - key: DB_POOL_SIZE
+        value: 10
+      - key: DB_MAX_OVERFLOW
+        value: 20
+      - key: DB_POOL_TIMEOUT
+        value: 30
+      - key: DB_ECHO
+        value: false
+
+      # ---- Redis (linkado automaticamente) ----
+      - key: REDIS_URL
+        fromService:
+          name: larizinha-redis
+          type: redis
+          property: connectionString
+      - key: REDIS_PREFIX
+        value: larizinha
+      - key: REDIS_LOCK_TTL
+        value: 300
+      - key: REDIS_VIEW_TTL
+        value: 120
+      - key: REDIS_HEARTBEAT_TTL
+        value: 60
+
+      # ---- Mercado Pago ----
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_PUBLIC_KEY
+        sync: false
+      - key: MP_CLIENT_ID
+        sync: false
+      - key: MP_CLIENT_SECRET
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: MP_WEBHOOK_URL
+        sync: false
+      - key: MP_PIX_EXPIRATION_MINUTES
+        value: 30
+      - key: MP_PIX_STATEMENT_DESCRIPTOR
+        value: LARIZINHASTORE
+
+      # ---- SMTP ----
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USE_TLS
+        value: true
+      - key: SMTP_EMAIL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Larizinha Store
+      - key: SMTP_FROM_EMAIL
+        sync: false
+
+      # ---- Webhook / API ----
+      - key: WEBHOOK_HOST
+        value: 0.0.0.0
+      - key: WEBHOOK_PORT
+        value: 8000
+      - key: WEBHOOK_PATH
+        value: /webhook
+      - key: WEBHOOK_SECRET_TOKEN
+        generateValue: true
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false
+      - key: API_BASE_URL
+        sync: false
+
+      # ---- WebApp ----
+      - key: WEBAPP_URL
+        sync: false
+      - key: WEBAPP_SECRET
+        generateValue: true
+      - key: WEBAPP_AUTH_MAX_AGE
+        value: 86400
+
+      # ---- Regras Financeiras ----
+      - key: MIN_DEPOSIT
+        value: 10.00
+      - key: MAX_DEPOSIT
+        value: 5000.00
+      - key: MIN_WITHDRAW
+        value: 20.00
+      - key: MAX_WITHDRAW
+        value: 5000.00
+      - key: WITHDRAW_FEE_PERCENT
+        value: 0
+      - key: WITHDRAW_DAILY_LIMIT
+        value: 3
+      - key: WITHDRAW_AUTO_APPROVE
+        value: false
+      - key: WITHDRAW_PROCESSING_DAYS
+        value: 1
+      - key: DEPOSIT_BONUS_PERCENT
+        value: 0
+      - key: DEPOSIT_BONUS_MIN
+        value: 50.00
+      - key: INITIAL_BALANCE
+        value: 0.00
+
+      # ---- Afiliados ----
+      - key: AFFILIATE_COMMISSION_PERCENT
+        value: 10
+      - key: AFFILIATE_COMMISSION_DEPOSIT_PERCENT
+        value: 5
+      - key: AFFILIATE_MIN_WITHDRAW
+        value: 20.00
+      - key: AFFILIATE_ENABLED
+        value: true
+
+      # ---- Automações ----
+      - key: AUTO_PIX_EXPIRED
+        value: true
+      - key: AUTO_PIX_EXPIRED_DELAY
+        value: 30
+      - key: AUTO_PIX_UNPAID
+        value: true
+      - key: AUTO_PIX_UNPAID_DELAY
+        value: 60
+      - key: AUTO_CART_ABANDONED
+        value: true
+      - key: AUTO_CART_ABANDONED_DELAY
+        value: 15
+      - key: AUTO_NEW_PROMO
+        value: true
+      - key: AUTO_NEW_PROMO_DELAY
+        value: 5
+      - key: AUTO_LOW_STOCK
+        value: true
+      - key: AUTO_LOW_STOCK_THRESHOLD
+        value: 5
+      - key: AUTO_HEARTBEAT
+        value: true
+      - key: AUTO_HEARTBEAT_TIMEOUT
+        value: 120
+
+      # ---- Travas ----
+      - key: ENABLE_CONCURRENCY_LOCK
+        value: true
+      - key: PRODUCT_LOCK_TTL
+        value: 300
+      - key: USER_VIEW_TTL
+        value: 120
+
+      # ---- Segurança ----
+      - key: ANTIFRAUD_ENABLED
+        value: true
+      - key: ANTIFRAUD_MAX_ACCOUNTS_PER_IP
+        value: 3
+      - key: ANTIFRAUD_SUSPICIOUS_AMOUNT
+        value: 1000.00
+      - key: THROTTLE_RATE
+        value: 0.5
+      - key: TEMP_BLOCK_MINUTES
+        value: 15
+
+      # ---- Logs ----
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_TO_FILE
+        value: true
+      - key: LOG_FILE_PATH
+        value: ./logs/bot.log
+      - key: LOG_ROTATION
+        value: 10 MB
+      - key: LOG_RETENTION
+        value: 7 days
+
+      # ---- Backup ----
+      - key: AUTO_BACKUP_ENABLED
+        value: true
+      - key: AUTO_BACKUP_INTERVAL_HOURS
+        value: 24
+      - key: BACKUP_RETENTION_DAYS
+        value: 7
+      - key: BACKUP_PATH
+        value: ./backups
+
+      # ---- Render ----
+      - key: RENDER
+        value: true
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          name: larizinha-bot
+          type: web
+          property: host
+      - key: PORT
+        value: 8000
+
+    # Comando start: webhook na porta 8000
+    startCommand: "python -m bot.main"
+
+  # ----------------------------------------------------------
+  # ⏱️ WORKER (automações — sem porta pública)
+  # ----------------------------------------------------------
+  - type: worker
+    name: larizinha-worker
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./bot/Dockerfile
+    dockerContext: ./bot
+    autoDeploy: true
+    envVars:
+      # O worker usa as MESMAS variáveis do bot
+      # (não duplicamos — usamos "fromService" para simplificar)
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: false
+      - key: APP_NAME
+        value: Larizinha Store
+      - key: APP_VERSION
+        value: 1.0.0
+      - key: TIMEZONE
+        value: America/Sao_Paulo
+      - key: DEFAULT_LANGUAGE
+        value: pt-BR
+      - key: DEFAULT_CURRENCY
+        value: BRL
+
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: BOT_ID
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: MAIN_ADMIN_ID
+        sync: false
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+
+      - key: REDIS_URL
+        fromService:
+          name: larizinha-redis
+          type: redis
+          property: connectionString
+      - key: REDIS_PREFIX
+        value: larizinha
+
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_PUBLIC_KEY
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: MP_WEBHOOK_URL
+        sync: false
+
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USE_TLS
+        value: true
+      - key: SMTP_EMAIL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Larizinha Store
+
+      - key: API_BASE_URL
+        sync: false
+      - key: WEBAPP_URL
+        sync: false
+      - key: WEBAPP_SECRET
+        sync: false
+
+      - key: MIN_DEPOSIT
+        value: 10.00
+      - key: MAX_DEPOSIT
+        value: 5000.00
+      - key: MIN_WITHDRAW
+        value: 20.00
+      - key: MAX_WITHDRAW
+        value: 5000.00
+
+      - key: AUTO_PIX_EXPIRED
+        value: true
+      - key: AUTO_PIX_EXPIRED_DELAY
+        value: 30
+      - key: AUTO_PIX_UNPAID
+        value: true
+      - key: AUTO_PIX_UNPAID_DELAY
+        value: 60
+      - key: AUTO_CART_ABANDONED
+        value: true
+      - key: AUTO_CART_ABANDONED_DELAY
+        value: 15
+      - key: AUTO_NEW_PROMO
+        value: true
+      - key: AUTO_NEW_PROMO_DELAY
+        value: 5
+      - key: AUTO_LOW_STOCK
+        value: true
+      - key: AUTO_LOW_STOCK_THRESHOLD
+        value: 5
+      - key: AUTO_HEARTBEAT
+        value: true
+      - key: AUTO_HEARTBEAT_TIMEOUT
+        value: 120
+
+      - key: ENABLE_CONCURRENCY_LOCK
+        value: true
+      - key: PRODUCT_LOCK_TTL
+        value: 300
+
+      - key: AUTO_BACKUP_ENABLED
+        value: true
+      - key: AUTO_BACKUP_INTERVAL_HOURS
+        value: 24
+      - key: BACKUP_RETENTION_DAYS
+        value: 7
+      - key: BACKUP_PATH
+        value: ./backups
+
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_TO_FILE
+        value: true
+      - key: LOG_FILE_PATH
+        value: ./logs/worker.log
+
+      - key: RENDER
+        value: true
+
+    startCommand: "python -m bot.worker"
+
+  # ----------------------------------------------------------
+  # 🔌 API (TypeScript — webhooks + Admin API + WebApp API)
+  # ----------------------------------------------------------
+  - type: web
+    name: larizinha-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./src/Dockerfile
+    dockerContext: ./src
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: TZ
+        value: America/Sao_Paulo
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: larizinha-postgres
+          property: connectionString
+
+      - key: REDIS_URL
+        fromService:
+          name: larizinha-redis
+          type: redis
+          property: connectionString
+      - key: REDIS_PREFIX
+        value: larizinha
+
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: MAIN_ADMIN_ID
+        sync: false
+
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_PUBLIC_KEY
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: MP_WEBHOOK_URL
+        sync: false
+
+      - key: WEBHOOK_SECRET_TOKEN
+        generateValue: true
+
+      - key: WEBAPP_URL
+        sync: false
+      - key: WEBAPP_SECRET
+        generateValue: true
+
+      - key: LOG_LEVEL
+        value: info
+
+    startCommand: "node dist/api/main.js"
+
+  # ----------------------------------------------------------
+  # 🖥️ WEBAPP (Next.js — Loja + Senha de Saque)
+  # ----------------------------------------------------------
+  - type: web
+    name: larizinha-webapp
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./webapp/Dockerfile
+    dockerContext: ./webapp
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: TZ
+        value: America/Sao_Paulo
+
+      # API interna (referência cruzada)
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: API_URL
+        sync: false
+
+      - key: WEBAPP_SECRET
+        sync: false
+
+      - key: NEXT_PUBLIC_BOT_USERNAME
+        sync: false
+      - key: NEXT_PUBLIC_STORE_NAME
+        value: Larizinha Store
+
+    startCommand: "node server.js"
+
+# ============================================================
+# 🔗 REDES (implícitas — serviços se enxergam por nome)
+# ============================================================
+
+# ============================================================
+# 📌 OBSERVAÇÕES IMPORTANTES
+# ============================================================
+# 1. No Render, "pserv" (Private Service) para Postgres significa
+#    que o banco NÃO tem IP público. Todos os serviços internos
+#    (bot, worker, api, webapp) se conectam via nome do serviço.
+#
+# 2. Após o primeiro deploy, RODE MANUALMENTE:
+#    - No serviço "larizinha-bot", abra o Shell e execute:
+#         python -m bot.seed
+#    - Isso popula admins, roles, categorias, mensagens, botões,
+#      configurações e automações.
+#
+# 3. As variáveis com "sync: false" precisam ser preenchidas MANUALMENTE
+#    no painel do Render (Environment → Add Environment Variable).
+#    São valores sensíveis (tokens, senhas, webhooks) que você NÃO
+#    deve subir no Git.
+#
+# 4. As variáveis com "generateValue: true" são geradas
+#    automaticamente pelo Render (segredos fortes).
+#
+# 5. As variáveis "fromDatabase" e "fromService" são resolvidas
+#    automaticamente pelo Render.
+#
+# 6. O webhook do Telegram é registrado automaticamente pelo bot
+#    quando RENDER=true e RENDER_EXTERNAL_URL está definido.
+#
+# 7. O Redis no Render é o produto "Key Value" — a connection string
+#    é compatível com redis:// (é o que o bot espera).
+#
+# 8. Plano "free" no Render:
+#    - Postgres: expira em 90 dias (migre para pago ou faça backup)
+#    - Web: hiberna após 15 min de inatividade (webhook acorda)
+#    - Worker: NÃO hiberna (roda 24/7 mas é cobrado)
+#    - Redis: expira em 90 dias
+#    - Recomendação: use "starter" para produção
+#
+# 9. Para atualizar variáveis de ambiente sem re-deploy:
+#    Painel do Render → Environment → Edit → Save
+#    (o serviço reinicia automaticamente)
+#
+# 10. Logs: acesse em "Logs" de cada serviço no painel do Render.
