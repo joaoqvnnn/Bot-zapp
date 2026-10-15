@@ -45,7 +45,7 @@ class Base(DeclarativeBase):
 
 
 # ============================================================
-# 🎛️ ENUMS (espelham os enums do Prisma)
+# 🎛️ ENUMS
 # ============================================================
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -189,14 +189,6 @@ class User(Base):
     )
     last_admin_msg_at: Mapped[Optional["DateTime"]] = mapped_column(
         "last_admin_msg_at", DateTime(timezone=True), nullable=True
-    )
-
-    # Relacionamentos
-    referrals: Mapped[list["User"]] = relationship(
-        "User", back_populates="referred_by", remote_side="User.referred_by_id"
-    )
-    referred_by: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="referrals", remote_side="User.id"
     )
 
     __table_args__ = (
@@ -839,7 +831,7 @@ class Automation(Base):
 
 
 # ============================================================
-# 🔒 LOCKS (persistência além do Redis)
+# 🔒 LOCKS
 # ============================================================
 class Lock(Base):
     __tablename__ = "locks"
@@ -995,12 +987,8 @@ class Log(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     category: Mapped[str] = mapped_column(String, nullable=False)
     action: Mapped[str] = mapped_column(String, nullable=False)
-    admin_id: Mapped[Optional[int]] = mapped_column(
-        "admin_id", BigInteger, ForeignKey("admins.id"), nullable=True
-    )
-    user_id: Mapped[Optional[int]] = mapped_column(
-        "user_id", BigInteger, ForeignKey("users.id"), nullable=True
-    )
+    admin_id: Mapped[Optional[int]] = mapped_column("admin_id", BigInteger, nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column("user_id", BigInteger, nullable=True)
     details: Mapped[dict] = mapped_column(JSONB, default=dict)
     ip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped["DateTime"] = mapped_column(
@@ -1068,13 +1056,7 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 @asynccontextmanager
 async def session_scope() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Context manager transacional.
-
-    Uso:
-        async with session_scope() as session:
-            ...
-    """
+    """Context manager transacional."""
     factory = get_session_factory()
     session: AsyncSession = factory()
     try:
@@ -1088,7 +1070,7 @@ async def session_scope() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency-injection style (FastAPI/Aiogram middlewares)."""
+    """Dependency-injection style."""
     factory = get_session_factory()
     async with factory() as session:
         try:
@@ -1100,12 +1082,12 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """
-    Inicialização: apenas valida conexão e cria enums/tabelas que ainda
-    não existam. Em produção as MIGRATIONS do Prisma são a fonte de verdade.
+    Inicialização: cria TODAS as tabelas se ainda não existirem.
+    Chama Base.metadata.create_all de forma assíncrona.
     """
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(text("SELECT 1"))
+        await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
