@@ -1,6 +1,6 @@
 """
 Larizinha Store — Configuração Central do Bot
-Carrega e valida TODAS as variáveis de ambiente usadas pelo bot + worker.
+Carrega e valida TODAS as variáveis de ambiente usadas pelo bot + worker + seed.
 Espelha 1:1 o arquivo .env.example da raiz do projeto.
 """
 from __future__ import annotations
@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     DEFAULT_CURRENCY: str = "BRL"
 
     # ==========================================================
+    # 🌱 SEED AUTOMÁTICO
+    # ==========================================================
+    RUN_SEED_ON_BOOT: bool = True
+
+    # ==========================================================
     # 🤖 TELEGRAM
     # ==========================================================
     BOT_TOKEN: str = Field(..., min_length=20)
@@ -48,6 +53,8 @@ class Settings(BaseSettings):
     REQUIRED_GROUP_ID: int = 0
     REQUIRED_GROUP_USERNAME: str = ""
     SUPPORT_SILENT_LINK: str = ""
+    SUPPORT_USERNAME: str = ""
+    SUPPORT_WHATSAPP: str = ""
 
     # ==========================================================
     # 🗄️ POSTGRESQL
@@ -192,6 +199,15 @@ class Settings(BaseSettings):
     RENDER: bool = False
     RENDER_EXTERNAL_URL: str = ""
     PORT: int = 8000
+
+    # ==========================================================
+    # 🌐 API (TypeScript) / WEBAPP (Next.js)
+    # ==========================================================
+    NODE_ENV: str = "production"
+    API_PORT: int = 8000
+    NEXT_PUBLIC_API_URL: str = ""
+    NEXT_PUBLIC_BOT_USERNAME: str = ""
+    NEXT_PUBLIC_STORE_NAME: str = "Larizinha Store"
 
     # ==========================================================
     # ✅ VALIDADORES
