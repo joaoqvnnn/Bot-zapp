@@ -1,0 +1,195 @@
+version: "3.9"
+
+# ============================================
+# LARIZINHA STORE — ORQUESTRAÇÃO COMPLETA
+# Bot (Aiogram) + API (FastAPI) + WebApp (Next.js)
+# Postgres + Redis + Worker (automações)
+# ============================================
+
+services:
+
+  # --------------------------------------------
+  # 🗄️ POSTGRESQL
+  # --------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: larizinha_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-larizinha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-larizinha_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-larizinha}
+      TZ: ${TIMEZONE:-America/Sao_Paulo}
+      PGTZ: ${TIMEZONE:-America/Sao_Paulo}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-larizinha} -d ${POSTGRES_DB:-larizinha}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - larizinha_net
+
+  # --------------------------------------------
+  # ⚡ REDIS
+  # --------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: larizinha_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-larizinha_redis_secret}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-larizinha_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - larizinha_net
+
+  # --------------------------------------------
+  # 🤖 BOT (Python Aiogram 3.x)
+  # --------------------------------------------
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: larizinha_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-larizinha_redis_secret}@redis:6379/0
+      TZ: ${TIMEZONE:-America/Sao_Paulo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./bot:/app
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      - bot_uploads:/app/uploads
+    networks:
+      - larizinha_net
+    command: python -m bot.main
+
+  # --------------------------------------------
+  # 🔌 API (FastAPI — webhooks + Admin API + WebApp API)
+  # --------------------------------------------
+  api:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: larizinha_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-larizinha_redis_secret}@redis:6379/0
+      TZ: ${TIMEZONE:-America/Sao_Paulo}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app
+      - ./logs:/app/logs
+    networks:
+      - larizinha_net
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  # --------------------------------------------
+  # 🖥️ WEBAPP (Next.js — Loja + Senha de Saque)
+  # --------------------------------------------
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: larizinha_webapp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_API_URL: ${API_BASE_URL:-http://api:8000}
+      NODE_ENV: production
+      TZ: ${TIMEZONE:-America/Sao_Paulo}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./webapp:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - larizinha_net
+    command: npm run start
+
+  # --------------------------------------------
+  # ⏱️ WORKER (Automações / Scheduler / Filas)
+  # --------------------------------------------
+  worker:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: larizinha_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-larizinha}:${POSTGRES_PASSWORD:-larizinha_secret}@postgres:5432/${POSTGRES_DB:-larizinha}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-larizinha_redis_secret}@redis:6379/0
+      TZ: ${TIMEZONE:-America/Sao_Paulo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./bot:/app
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    networks:
+      - larizinha_net
+    command: python -m bot.worker
+
+# --------------------------------------------
+# 🔗 REDES
+# --------------------------------------------
+networks:
+  larizinha_net:
+    driver: bridge
+
+# --------------------------------------------
+# 💾 VOLUMES
+# --------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  bot_uploads:
+    driver: local
