@@ -1,0 +1,833 @@
+// ============================================
+// LARIZINHA STORE — PRISMA SCHEMA
+// PostgreSQL 16 · Fonte de verdade do banco
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_SYNC")
+}
+
+// ============================================
+// 👥 USUÁRIOS
+// ============================================
+
+model User {
+  id                BigInt    @id @default(autoincrement())
+  telegramId        BigInt    @unique @map("telegram_id")
+  username          String?
+  firstName         String?   @map("first_name")
+  lastName          String?   @map("last_name")
+  languageCode      String?   @map("language_code")
+  isPremium         Boolean   @default(false) @map("is_premium")
+  photoUrl          String?   @map("photo_url")
+
+  balance           Decimal   @default(0) @db.Decimal(12, 2)
+  balanceLocked     Decimal   @default(0) @map("balance_locked") @db.Decimal(12, 2)
+  totalSpent        Decimal   @default(0) @map("total_spent") @db.Decimal(12, 2)
+  totalDeposited    Decimal   @default(0) @map("total_deposited") @db.Decimal(12, 2)
+  totalWithdrawn    Decimal   @default(0) @map("total_withdrawn") @db.Decimal(12, 2)
+  totalGifts        Decimal   @default(0) @map("total_gifts") @db.Decimal(12, 2)
+  purchasesCount    Int       @default(0) @map("purchases_count")
+
+  whatsapp          String?
+  email             String?
+  pixKey            String?   @map("pix_key")
+  pixKeyType        String?   @map("pix_key_type")
+
+  withdrawPassword  String?   @map("withdraw_password")
+  recoveryEmail     String?   @map("recovery_email")
+
+  referredById      BigInt?   @map("referred_by_id")
+  referredBy        User?     @relation("Referrals", fields: [referredById], references: [id])
+  referrals         User[]    @relation("Referrals")
+
+  affiliateCode     String?   @unique @map("affiliate_code")
+  affiliateActive   Boolean   @default(false) @map("affiliate_active")
+  affiliateLevel    String    @default("iniciante") @map("affiliate_level")
+  affiliateBalance  Decimal   @default(0) @map("affiliate_balance") @db.Decimal(12, 2)
+
+  status            UserStatus @default(ACTIVE)
+  banReason         String?   @map("ban_reason")
+  blockReason       String?   @map("block_reason")
+  alertsEnabled     Json      @default("[]") @map("alerts_enabled")
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  lastSeenAt        DateTime? @map("last_seen_at")
+  lastAdminMsgAt    DateTime? @map("last_admin_msg_at")
+
+  transactions      Transaction[]
+  orders            Order[]
+  withdrawals       Withdraw[]
+  coupons           CouponUsage[]
+  giftsReceived     GiftCardRedemption[]
+  commissions       Commission[]  @relation("CommissionEarner")
+  commissionsFrom   Commission[]  @relation("CommissionSource")
+  tickets           UserTicket[]
+  logs              Log[]
+
+  @@index([telegramId])
+  @@index([status])
+  @@index([affiliateCode])
+  @@index([referredById])
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  BANNED
+  DELETED
+}
+
+// ============================================
+// 👑 ADMINS & PERMISSÕES
+// ============================================
+
+model Admin {
+  id           BigInt    @id @default(autoincrement())
+  telegramId   BigInt    @unique @map("telegram_id")
+  username     String?
+  firstName    String?   @map("first_name")
+  isMainAdmin  Boolean   @default(false) @map("is_main_admin")
+  roleId       BigInt?   @map("role_id")
+  role         Role?     @relation(fields: [roleId], references: [id])
+  permissions  Json      @default("[]")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  logs         Log[]
+
+  @@map("admins")
+}
+
+model Role {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  permissions Json     @default("[]")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  admins      Admin[]
+
+  @@map("roles")
+}
+
+// ============================================
+// 📦 CATÁLOGO
+// ============================================
+
+model Category {
+  id          BigInt    @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  emoji       String?
+  order       Int       @default(0)
+  visible     Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                BigInt    @id @default(autoincrement())
+  name              String
+  subtitle          String?
+  description       String?
+  slug              String    @unique
+  categoryId        BigInt?   @map("category_id")
+  category          Category? @relation(fields: [categoryId], references: [id])
+
+  price             Decimal   @db.Decimal(12, 2)
+  pricePromo        Decimal?  @map("price_promo") @db.Decimal(12, 2)
+  cost              Decimal   @default(0) @db.Decimal(12, 2)
+
+  stock             Int       @default(0)
+  stockMin          Int       @default(0) @map("stock_min")
+  unlimited         Boolean   @default(false)
+  perUserLimit      Int       @default(0) @map("per_user_limit")
+
+  order             Int       @default(0)
+  featured          Boolean   @default(false)
+  soldOut           Boolean   @default(false) @map("sold_out")
+  visible           Boolean   @default(true)
+
+  imageTelegram     String?   @map("image_telegram")
+  imageWebapp       String?   @map("image_webapp")
+  fileUrl           String?   @map("file_url")
+
+  noteProduct       String?   @map("note_product")
+  noteActivation    String?   @map("note_activation")
+  activationLink    String?   @map("activation_link")
+  warrantyDays      Int       @default(0) @map("warranty_days")
+  expirationDays    Int       @default(0) @map("expiration_days")
+
+  autoDelivery      Boolean   @default(true) @map("auto_delivery")
+  humanDelivery     Boolean   @default(false) @map("human_delivery")
+
+  viewsCount        Int       @default(0) @map("views_count")
+  soldCount         Int       @default(0) @map("sold_count")
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  credentials       ProductCredential[]
+  orderItems        OrderItem[]
+  images            ProductImage[]
+  files             ProductFile[]
+
+  @@index([categoryId])
+  @@index([visible, soldOut])
+  @@map("products")
+}
+
+model ProductImage {
+  id         BigInt   @id @default(autoincrement())
+  productId  BigInt   @map("product_id")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url        String
+  order      Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("product_images")
+}
+
+model ProductFile {
+  id         BigInt   @id @default(autoincrement())
+  productId  BigInt   @map("product_id")
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String
+  url        String
+  mimeType   String?  @map("mime_type")
+  size       Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("product_files")
+}
+
+model ProductCredential {
+  id         BigInt    @id @default(autoincrement())
+  productId  BigInt    @map("product_id")
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  payload    String
+  used       Boolean   @default(false)
+  usedAt     DateTime? @map("used_at")
+  orderId    BigInt?   @map("order_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([productId, used])
+  @@map("product_credentials")
+}
+
+// ============================================
+// 🛒 PEDIDOS E VENDAS
+// ============================================
+
+model Order {
+  id             BigInt      @id @default(autoincrement())
+  userId         BigInt      @map("user_id")
+  user           User        @relation(fields: [userId], references: [id])
+  total          Decimal     @db.Decimal(12, 2)
+  discount       Decimal     @default(0) @db.Decimal(12, 2)
+  finalTotal     Decimal     @map("final_total") @db.Decimal(12, 2)
+  couponId       BigInt?     @map("coupon_id")
+  coupon         Coupon?     @relation(fields: [couponId], references: [id])
+  method         PaymentMethod
+  status         OrderStatus @default(PENDING)
+  deliveredAt    DateTime?   @map("delivered_at")
+  expiresAt      DateTime?   @map("expires_at")
+  refundedAt     DateTime?   @map("refunded_at")
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  items          OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+enum PaymentMethod {
+  BALANCE
+  PIX
+  GIFT_CARD
+  MANUAL
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  DELIVERED
+  CANCELED
+  REFUNDED
+  EXPIRED
+}
+
+model OrderItem {
+  id           BigInt    @id @default(autoincrement())
+  orderId      BigInt    @map("order_id")
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    BigInt    @map("product_id")
+  product      Product   @relation(fields: [productId], references: [id])
+  productName  String    @map("product_name")
+  unitPrice    Decimal   @map("unit_price") @db.Decimal(12, 2)
+  quantity     Int
+  total        Decimal   @db.Decimal(12, 2)
+  credentials  Json      @default("[]")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("order_items")
+}
+
+// ============================================
+// 💳 PAGAMENTOS / PIX / TRANSAÇÕES
+// ============================================
+
+model PixCharge {
+  id             BigInt       @id @default(autoincrement())
+  txid           String       @unique
+  userId         BigInt       @map("user_id")
+  amount         Decimal      @db.Decimal(12, 2)
+  bonus          Decimal      @default(0) @db.Decimal(12, 2)
+  qrCode         String?      @map("qr_code") @db.Text
+  qrCodeBase64   String?      @map("qr_code_base64") @db.Text
+  copyPaste      String?      @map("copy_paste") @db.Text
+  mpPaymentId    String?      @map("mp_payment_id")
+  status         PixStatus    @default(PENDING)
+  expiresAt      DateTime     @map("expires_at")
+  paidAt         DateTime?    @map("paid_at")
+  orderId        BigInt?      @map("order_id")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("pix_charges")
+}
+
+enum PixStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELED
+  REFUNDED
+}
+
+model Transaction {
+  id           BigInt            @id @default(autoincrement())
+  userId       BigInt            @map("user_id")
+  user         User              @relation(fields: [userId], references: [id])
+  type         TransactionType
+  amount       Decimal           @db.Decimal(12, 2)
+  balanceAfter Decimal           @map("balance_after") @db.Decimal(12, 2)
+  description  String?
+  reference    String?
+  metadata     Json              @default("{}")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([type])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  PURCHASE
+  REFUND
+  COMMISSION
+  GIFT
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  BONUS
+}
+
+// ============================================
+// 💸 SAQUES
+// ============================================
+
+model Withdraw {
+  id             BigInt         @id @default(autoincrement())
+  userId         BigInt         @map("user_id")
+  user           User           @relation(fields: [userId], references: [id])
+  amount         Decimal        @db.Decimal(12, 2)
+  fee            Decimal        @default(0) @db.Decimal(12, 2)
+  netAmount      Decimal        @map("net_amount") @db.Decimal(12, 2)
+  pixKey         String         @map("pix_key")
+  pixKeyType     String         @map("pix_key_type")
+  status         WithdrawStatus @default(PENDING)
+  approvedById   BigInt?        @map("approved_by_id")
+  receiptUrl     String?        @map("receipt_url")
+  receiptSentAt  DateTime?      @map("receipt_sent_at")
+  observation    String?
+  processedAt    DateTime?      @map("processed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdraws")
+}
+
+enum WithdrawStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  PAID
+  REFUSED
+  CANCELED
+}
+
+// ============================================
+// 🎁 GIFT CARDS
+// ============================================
+
+model GiftCard {
+  id          BigInt    @id @default(autoincrement())
+  code        String    @unique
+  amount      Decimal   @db.Decimal(12, 2)
+  usesMax     Int       @default(1) @map("uses_max")
+  usesCount   Int       @default(0) @map("uses_count")
+  expiresAt   DateTime? @map("expires_at")
+  active      Boolean   @default(true)
+  createdById BigInt?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  redemptions GiftCardRedemption[]
+
+  @@map("gift_cards")
+}
+
+model GiftCardRedemption {
+  id         BigInt   @id @default(autoincrement())
+  giftCardId BigInt   @map("gift_card_id")
+  giftCard   GiftCard @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  userId     BigInt   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id])
+  amount     Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("gift_card_redemptions")
+}
+
+// ============================================
+// 🎟️ CUPONS
+// ============================================
+
+model Coupon {
+  id            BigInt    @id @default(autoincrement())
+  code          String    @unique
+  type          CouponType
+  value         Decimal   @db.Decimal(12, 2)
+  minPurchase   Decimal   @default(0) @map("min_purchase") @db.Decimal(12, 2)
+  usesMax       Int       @default(0) @map("uses_max")
+  usesCount     Int       @default(0) @map("uses_count")
+  perUserLimit  Int       @default(1) @map("per_user_limit")
+  expiresAt     DateTime? @map("expires_at")
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  usages        CouponUsage[]
+  orders        Order[]
+
+  @@map("coupons")
+}
+
+enum CouponType {
+  FIXED
+  PERCENT
+  BONUS
+}
+
+model CouponUsage {
+  id        BigInt   @id @default(autoincrement())
+  couponId  BigInt   @map("coupon_id")
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId    BigInt   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  orderId   BigInt?  @map("order_id")
+  discount  Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("coupon_usages")
+}
+
+// ============================================
+// 👥 AFILIADOS & COMISSÕES
+// ============================================
+
+model Commission {
+  id           BigInt         @id @default(autoincrement())
+  earnerId     BigInt         @map("earner_id")
+  earner       User           @relation("CommissionEarner", fields: [earnerId], references: [id])
+  sourceUserId BigInt         @map("source_user_id")
+  sourceUser   User           @relation("CommissionSource", fields: [sourceUserId], references: [id])
+  amount       Decimal        @db.Decimal(12, 2)
+  percent      Decimal        @db.Decimal(5, 2)
+  type         CommissionType
+  status       CommissionStatus @default(PENDING)
+  reference    String?
+  paidAt       DateTime?      @map("paid_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([earnerId])
+  @@index([status])
+  @@map("commissions")
+}
+
+enum CommissionType {
+  PURCHASE
+  DEPOSIT
+  LEVEL_BONUS
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  REVERSED
+}
+
+// ============================================
+// 📡 CANAIS / GRUPOS / POSTS
+// ============================================
+
+model Channel {
+  id              BigInt    @id @default(autoincrement())
+  chatId          BigInt    @unique @map("chat_id")
+  username        String?
+  title           String
+  type            ChannelType
+  required        Boolean   @default(true)
+  inviteLink      String?   @map("invite_link")
+  autoPostBuy     Boolean   @default(true) @map("auto_post_buy")
+  autoPostStock   Boolean   @default(true) @map("auto_post_stock")
+  autoPostPromo   Boolean   @default(true) @map("auto_post_promo")
+  messageKey      String?   @map("message_key")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("channels")
+}
+
+enum ChannelType {
+  CHANNEL
+  GROUP
+}
+
+model Promotion {
+  id          BigInt    @id @default(autoincrement())
+  productId   BigInt?   @map("product_id")
+  messageKey  String?   @map("message_key")
+  targetType  String    @map("target_type")
+  targetValue String?   @map("target_value")
+  scheduledAt DateTime  @map("scheduled_at")
+  recurrence  String    @default("none")
+  status      String    @default("pending")
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("promotions")
+}
+
+// ============================================
+// 📨 DISPAROS / NOTIFICAÇÕES
+// ============================================
+
+model Broadcast {
+  id           BigInt              @id @default(autoincrement())
+  messageKey   String?             @map("message_key")
+  content      Json                @default("{}")
+  targetFilter String              @map("target_filter")
+  status       BroadcastStatus     @default(PENDING)
+  total        Int                 @default(0)
+  delivered    Int                 @default(0)
+  failed       Int                 @default(0)
+  scheduledAt  DateTime?           @map("scheduled_at")
+  startedAt    DateTime?           @map("started_at")
+  finishedAt   DateTime?           @map("finished_at")
+  createdById  BigInt?             @map("created_by_id")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@map("broadcasts")
+}
+
+enum BroadcastStatus {
+  PENDING
+  RUNNING
+  DONE
+  CANCELED
+  FAILED
+}
+
+// ============================================
+// ✏️ MENSAGENS E BOTÕES EDITÁVEIS
+// ============================================
+
+model MessageTemplate {
+  id         BigInt    @id @default(autoincrement())
+  key        String    @unique
+  screen     String
+  content    String    @db.Text
+  mediaType  String?   @map("media_type")
+  mediaUrl   String?   @map("media_url")
+  parseMode  String    @default("HTML") @map("parse_mode")
+  version    Int       @default(1)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  versions   MessageTemplateVersion[]
+
+  @@map("message_templates")
+}
+
+model MessageTemplateVersion {
+  id         BigInt          @id @default(autoincrement())
+  templateId BigInt          @map("template_id")
+  template   MessageTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  content    String          @db.Text
+  createdById BigInt?        @map("created_by_id")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  @@map("message_template_versions")
+}
+
+model ButtonTemplate {
+  id           BigInt   @id @default(autoincrement())
+  screen       String
+  key          String
+  text         String
+  emoji        String?
+  type         String   @default("callback")
+  callbackData String?  @map("callback_data")
+  url          String?
+  webappUrl    String?  @map("webapp_url")
+  row          Int      @default(1)
+  position     Int      @default(0)
+  order        Int      @default(0)
+  visible      Boolean  @default(true)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([screen, key])
+  @@index([screen, visible])
+  @@map("button_templates")
+}
+
+// ============================================
+// ⚙️ CONFIGURAÇÕES GLOBAIS (KV)
+// ============================================
+
+model Settings {
+  id        BigInt   @id @default(autoincrement())
+  key       String   @unique
+  value     String   @db.Text
+  type      String   @default("string")
+  category  String   @default("general")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+// ============================================
+// 🤖 AUTOMAÇÕES
+// ============================================
+
+model Automation {
+  id          BigInt   @id @default(autoincrement())
+  key         String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(true)
+  delayMin    Int?     @map("delay_min")
+  threshold   Int?
+  messageKey  String?  @map("message_key")
+  metadata    Json     @default("{}")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("automations")
+}
+
+// ============================================
+// 🔒 TRAVAS (persistência além do Redis)
+// ============================================
+
+model Lock {
+  id         BigInt    @id @default(autoincrement())
+  key        String    @unique
+  productId  BigInt?   @map("product_id")
+  userId     BigInt?   @map("user_id")
+  purpose    String
+  expiresAt  DateTime  @map("expires_at")
+  releasedAt DateTime? @map("released_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("locks")
+}
+
+// ============================================
+// 🚫 BLACKLIST
+// ============================================
+
+model Blacklist {
+  id        BigInt   @id @default(autoincrement())
+  telegramId BigInt  @unique @map("telegram_id")
+  reason    String?
+  addedById BigInt?  @map("added_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("blacklist")
+}
+
+// ============================================
+// 🎫 TICKETS E RECOMPENSAS
+// ============================================
+
+model Ticket {
+  id          BigInt   @id @default(autoincrement())
+  name        String
+  rarity      String
+  price       Decimal  @db.Decimal(12, 2)
+  rewards     Json     @default("[]")
+  odds        Json     @default("{}")
+  stock       Int      @default(0)
+  perUserLimit Int     @default(0) @map("per_user_limit")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userTickets UserTicket[]
+
+  @@map("tickets")
+}
+
+model UserTicket {
+  id        BigInt   @id @default(autoincrement())
+  ticketId  BigInt   @map("ticket_id")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    BigInt   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  reward    Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("user_tickets")
+}
+
+// ============================================
+// 🎮 JOGOS
+// ============================================
+
+model Game {
+  id          BigInt   @id @default(autoincrement())
+  key         String   @unique
+  name        String
+  description String?
+  cost        Decimal  @default(0) @db.Decimal(12, 2)
+  rewards     Json     @default("[]")
+  limits      Json     @default("{}")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  sessions    GameSession[]
+
+  @@map("games")
+}
+
+model GameSession {
+  id         BigInt    @id @default(autoincrement())
+  gameId     BigInt    @map("game_id")
+  game       Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId     BigInt    @map("user_id")
+  result     Json      @default("{}")
+  cost       Decimal   @db.Decimal(12, 2)
+  reward     Decimal   @default(0) @db.Decimal(12, 2)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("game_sessions")
+}
+
+// ============================================
+// 🛡️ SEGURANÇA / MONITORAMENTO
+// ============================================
+
+model SecurityEvent {
+  id         BigInt   @id @default(autoincrement())
+  type       String
+  severity   String   @default("info")
+  userId     BigInt?  @map("user_id")
+  ip         String?
+  details    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@map("security_events")
+}
+
+model Alert {
+  id         BigInt    @id @default(autoincrement())
+  category   String
+  severity   String    @default("info")
+  title      String
+  message    String    @db.Text
+  resolved   Boolean   @default(false)
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([category, resolved])
+  @@map("alerts")
+}
+
+// ============================================
+// 📜 LOGS
+// ============================================
+
+model Log {
+  id         BigInt   @id @default(autoincrement())
+  category   String
+  action     String
+  adminId    BigInt?  @map("admin_id")
+  admin      Admin?   @relation(fields: [adminId], references: [id])
+  userId     BigInt?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id])
+  details    Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@index([adminId])
+  @@map("logs")
+}
+
+// ============================================
+// 💾 BACKUPS
+// ============================================
+
+model Backup {
+  id         BigInt   @id @default(autoincrement())
+  filename   String
+  size       BigInt
+  type       String   @default("auto")
+  status     String   @default("ok")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("backups")
+}
