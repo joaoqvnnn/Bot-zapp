@@ -3,7 +3,7 @@
 # ============================================
 
 # --- Framework do Bot ---
-aiogram==3.13.1
+aiogram==3.17.0
 aiogram-dialog==2.2.0
 
 # --- Banco de Dados (PostgreSQL) ---
