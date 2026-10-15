@@ -1,26 +1,25 @@
 """
-Larizinha Store — Bootstrap do Bot
+Larizinha Store — Bootstrap FINAL do Bot
 Inicializa TUDO na ordem correta:
 
   1. Configuração e logging
   2. Bot (Telegram) + Dispatcher (Aiogram 3.x) + Storage (Redis)
   3. Middlewares globais (throttle → user_loader → channel_guard)
-  4. Routers do membro (commands, start, shop, catalog, buy, profile,
-     recharge, withdraw, affiliates, ranking, alerts, support, search,
-     tickets, games)
-  5. Router do painel admin + AdminGuard middleware
+  4. Routers do membro (14 handlers)
+  5. Router do painel admin (com AdminGuardMiddleware / Permission Engine)
   6. Ciclo de vida:
-       - Startup: init_db, init_services, set_commands, set_webhook (prod)
+       - Startup: init_db, init_services, seed (opcional), set_commands, webhook
        - Shutdown: close_redis, close_db, shutdown_services, session.close
   7. Modo de execução:
-       - RENDER=true  → WEBHOOK (FastAPI serve o webhook do Telegram)
-       - Caso contrário → POLLING (desenvolvimento/local)
+       - RENDER=true / TELEGRAM_WEBHOOK_URL  → WEBHOOK (aiohttp)
+       - Caso contrário                     → POLLING (dev/local)
+  8. Healthcheck exposto em /health e /
 
 Regras invioláveis:
-- NADA de mensagem/tecla hardcoded aqui — só bootstrap.
-- Registro automático e tolerante a ausência de módulos.
+- NADA de mensagem/botão hardcoded aqui — só bootstrap.
+- Registro automático e tolerante à ausência de módulos.
 - Webhook com secret_token validado.
-- Healthcheck exposto em /health para o Render.
+- Seed automático controlado por RUN_SEED_ON_BOOT (.env).
 """
 from __future__ import annotations
 
@@ -33,7 +32,6 @@ from typing import Optional
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault
 from aiogram.webhook.aiohttp_server import (
@@ -43,16 +41,29 @@ from aiogram.webhook.aiohttp_server import (
 from aiohttp import web
 
 from bot.config import settings
-from bot.database import close_db, healthcheck as db_healthcheck, init_db
+from bot.database import (
+    close_db,
+    healthcheck as db_healthcheck,
+    init_db,
+)
 from bot.logger import logger, setup_logger
-from bot.redis_client import close_redis, get_redis, ping as redis_ping
-from bot.services import init_services, services_health, shutdown_services
+from bot.redis_client import (
+    close_redis,
+    ping as redis_ping,
+)
+from bot.services import (
+    init_services,
+    services_health,
+    shutdown_services,
+)
 
-# Middlewares
+# ---------- Middlewares ----------
 from bot.middlewares import setup_middlewares
+from bot.middlewares.admin_guard import AdminGuardMiddleware
 
-# Routers
+# ---------- Routers ----------
 from bot.handlers import register_all_routers
+from bot.handlers.admin import register_admin_routers
 
 
 # ============================================================
@@ -80,10 +91,10 @@ def build_bot() -> Bot:
 
 
 def build_storage() -> RedisStorage:
-    """Storage Redis para FSM (usa a mesma instância do Redis)."""
+    """Storage Redis para FSM."""
     return RedisStorage.from_url(
         settings.REDIS_URL,
-        key_builder=None,  # padrão: fsm:{chat_id}:{user_id}:{bot_id}
+        key_builder=None,  # fsm:{chat_id}:{user_id}:{bot_id}
         connection_kwargs={
             "decode_responses": False,
         },
@@ -91,7 +102,7 @@ def build_storage() -> RedisStorage:
 
 
 def build_dispatcher() -> Dispatcher:
-    """Dispatcher com storage Redis."""
+    """Dispatcher com storage Redis + dependências no contexto."""
     storage = build_storage()
     dp = Dispatcher(storage=storage)
 
@@ -133,6 +144,52 @@ async def set_default_commands(bot: Bot) -> None:
 
 
 # ============================================================
+# 🌱 SEED AUTOMÁTICO
+# ============================================================
+async def run_seed_if_enabled() -> None:
+    """
+    Roda o seed se RUN_SEED_ON_BOOT=true e o banco ainda não foi populado.
+    """
+    enabled = str(getattr(settings, "RUN_SEED_ON_BOOT", "true")).lower() == "true"
+    if not enabled:
+        logger.info("Seed automático desativado (RUN_SEED_ON_BOOT=false).")
+        return
+
+    try:
+        from bot.seed import (
+            _seed_admins,
+            _seed_roles,
+            _seed_categories,
+            _seed_messages,
+            _seed_buttons,
+            _seed_settings,
+            _seed_automations,
+        )
+
+        logger.info("🌱 Verificando seed inicial do banco...")
+
+        a = await _seed_admins()
+        r = await _seed_roles()
+        c = await _seed_categories()
+        m = await _seed_messages()
+        b = await _seed_buttons()
+        s = await _seed_settings()
+        au = await _seed_automations()
+
+        total = a + r + c + m + b + s + au
+        if total == 0:
+            logger.info("🌱 Banco já populado — nada novo.")
+        else:
+            logger.info(
+                f"🌱 Seed aplicado: admins={a} roles={r} categorias={c} "
+                f"mensagens={m} botões={b} settings={s} automações={au}"
+            )
+    except Exception as exc:
+        logger.exception(f"⚠️  Falha no seed automático: {exc}")
+        # Não bloqueia o boot
+
+
+# ============================================================
 # 🚀 STARTUP / SHUTDOWN
 # ============================================================
 async def on_startup(bot: Bot) -> None:
@@ -146,7 +203,7 @@ async def on_startup(bot: Bot) -> None:
     try:
         await init_db()
         ok = await db_healthcheck()
-        logger.info(f"🗄️ Banco: {'OK' if ok else 'FALHOU'}")
+        logger.info(f"🗄️  Banco: {'OK' if ok else 'FALHOU'}")
     except Exception as exc:
         logger.exception(f"Erro no init_db: {exc}")
 
@@ -157,7 +214,10 @@ async def on_startup(bot: Bot) -> None:
     except Exception as exc:
         logger.exception(f"Erro no ping do Redis: {exc}")
 
-    # 3) Serviços internos (motores, PIX, automações, etc.)
+    # 3) Seed inicial (aditivo)
+    await run_seed_if_enabled()
+
+    # 4) Serviços internos
     try:
         await init_services(bot)
         health = await services_health()
@@ -165,21 +225,20 @@ async def on_startup(bot: Bot) -> None:
     except Exception as exc:
         logger.exception(f"Erro no init_services: {exc}")
 
-    # 4) Comandos default
+    # 5) Comandos default
     await set_default_commands(bot)
 
-    # 5) Webhook (produção)
+    # 6) Webhook (produção)
     if settings.RENDER or settings.TELEGRAM_WEBHOOK_URL:
         await _setup_webhook(bot)
     else:
-        # Remove webhook (para polling funcionar)
         try:
             await bot.delete_webhook(drop_pending_updates=False)
             logger.info("Webhook removido — rodando em modo polling.")
         except Exception as exc:
             logger.debug(f"delete_webhook falhou: {exc}")
 
-    # 6) Info do bot
+    # 7) Info do bot
     try:
         me = await bot.get_me()
         logger.info(
@@ -225,7 +284,9 @@ async def _setup_webhook(bot: Bot) -> None:
     webhook_url = settings.TELEGRAM_WEBHOOK_URL
     if not webhook_url:
         if settings.RENDER_EXTERNAL_URL:
-            webhook_url = f"{settings.RENDER_EXTERNAL_URL.rstrip('/')}/webhook/telegram"
+            webhook_url = (
+                f"{settings.RENDER_EXTERNAL_URL.rstrip('/')}/webhook/telegram"
+            )
         else:
             logger.warning("WEBHOOK URL não configurada — webhook ignorado.")
             return
@@ -301,10 +362,10 @@ async def start_webhook_server(bot: Bot, dp: Dispatcher) -> None:
     )
     handler.register(app, path="/webhook/telegram")
 
-    # Anexa ao app
+    # Anexa ao app (resolve lifecycle)
     setup_application(app, dp, bot=bot)
 
-    # Sobe o servidor
+    # Sobe
     runner = web.AppRunner(app)
     await runner.setup()
     _webhook_runner = runner
@@ -317,7 +378,7 @@ async def start_webhook_server(bot: Bot, dp: Dispatcher) -> None:
     await site.start()
 
     logger.info(
-        f"🌐 Servidor webhook ouvindo em "
+        f"🌐 Webhook ouvindo em "
         f"http://{settings.WEBHOOK_HOST}:{settings.WEBHOOK_PORT}"
     )
 
@@ -338,19 +399,42 @@ async def stop_webhook_server() -> None:
 # ============================================================
 def register_handlers(dp: Dispatcher) -> None:
     """
-    Registra middlewares, routers do membro e o router admin.
-    O AdminGuardMiddleware é aplicado SOMENTE no router admin.
+    Registra:
+      1. Routers do membro (via register_all_routers)
+      2. Router admin dedicado (com AdminGuardMiddleware)
+      3. Middlewares globais (throttle → user_loader → channel_guard)
     """
-    # ---------- Admin router ----------
+    # ---------- Router admin dedicado ----------
     admin_router = Router(name="admin_root")
 
-    # ---------- Routers (membro + admin) ----------
+    # ---------- Routers do membro + admin (via agregador) ----------
     register_all_routers(dp, admin_router=admin_router)
 
-    # ---------- Middlewares globais (throttle → user_loader → channel_guard) ----------
+    # ---------- Routers admin (34 módulos) ----------
+    try:
+        registered, ignored = register_admin_routers(admin_router)
+        logger.info(
+            f"[admin] {registered} módulos registrados, {ignored} ignorados."
+        )
+    except Exception as exc:
+        logger.exception(f"Falha ao registrar routers admin: {exc}")
+
+    # ---------- Middlewares globais ----------
     setup_middlewares(dp, admin_router=admin_router)
 
-    # ---------- Inclui o admin router no dispatcher ----------
+    # ---------- AdminGuard (permission engine) ----------
+    try:
+        guard = AdminGuardMiddleware()
+        admin_router.message.middleware(guard)
+        admin_router.callback_query.middleware(guard)
+        logger.info("[admin] AdminGuardMiddleware aplicado.")
+    except Exception as exc:
+        logger.exception(f"Falha ao aplicar AdminGuard: {exc}")
+
+    # ---------- Inclui o router admin no dispatcher ----------
+    # IMPORTANTE: incluir por ÚLTIMO para que os handlers do membro
+    # tenham prioridade quando os callbacks colidirem (não há colisão
+    # porque usamos prefixo "admin:", mas por segurança).
     dp.include_router(admin_router)
 
     logger.info("Handlers e middlewares registrados.")
@@ -402,7 +486,6 @@ async def amain() -> None:
             # WEBHOOK
             await start_webhook_server(_bot, _dp)
 
-            # Aguarda sinal de shutdown
             loop = asyncio.get_running_loop()
 
             def _ask_shutdown() -> None:
@@ -440,7 +523,6 @@ async def amain() -> None:
             for task in pending:
                 task.cancel()
 
-            # Se polling terminou com erro, propaga
             for task in done:
                 try:
                     task.result()
@@ -449,7 +531,6 @@ async def amain() -> None:
                 except Exception:
                     pass
     finally:
-        # ---------- Shutdown ----------
         try:
             await on_shutdown(_bot)
         except Exception as exc:
@@ -457,7 +538,7 @@ async def amain() -> None:
 
 
 def main() -> None:
-    """Wrapper síncrono para o bot."""
+    """Wrapper síncrono."""
     try:
         asyncio.run(amain())
     except KeyboardInterrupt:
@@ -483,6 +564,7 @@ __all__ = [
     "build_storage",
     "register_handlers",
     "set_default_commands",
+    "run_seed_if_enabled",
     "on_startup",
     "on_shutdown",
     "start_webhook_server",
