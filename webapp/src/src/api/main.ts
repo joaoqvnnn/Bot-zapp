@@ -1,10 +1,10 @@
 /**
  * Larizinha Store — API TypeScript
- * Servidor Fastify principal.
+ * Servidor Fastify principal — VERSÃO FINAL COMPLETA.
  *
  * Responsabilidades:
- *   - Registrar plugins (CORS, helmet, rate-limit, sensible, cookie, jwt)
- *   - Registrar rotas (/health, /webhook/*, /webapp/*, /admin/*)
+ *   - Registrar plugins (CORS, helmet, rate-limit, sensible, cookie, auth)
+ *   - Registrar rotas (/health, /webhook/*, /webapp/*)
  *   - Graceful shutdown (SIGTERM/SIGINT)
  *   - Conectar/desconectar Postgres e Redis
  *   - Expor healthcheck para o Render
@@ -16,14 +16,19 @@ import logger from "@/config/logger";
 import { connectPrisma, disconnectPrisma, prismaHealthcheck } from "@/config/prisma";
 import { connectRedis, disconnectRedis, redisHealthcheck } from "@/config/redis";
 
-// ---------- Plugins ----------
+// ============================================================
+// 🧩 PLUGINS
+// ============================================================
 import corsPlugin from "@/api/plugins/cors";
 import helmetPlugin from "@/api/plugins/helmet";
 import rateLimitPlugin from "@/api/plugins/rate-limit";
 import sensiblePlugin from "@/api/plugins/sensible";
 import cookiePlugin from "@/api/plugins/cookie";
+import authPlugin from "@/api/plugins/auth";
 
-// ---------- Rotas ----------
+// ============================================================
+// 🛣️ ROTAS
+// ============================================================
 import healthRoutes from "@/api/routes/health";
 import webappRoutes from "@/api/routes/webapp";
 import webhookMpRoutes from "@/api/routes/webhook/mercadopago";
@@ -57,8 +62,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.addHook("onResponse", async (req, reply) => {
-    const startTime = (req as unknown as { startTime: number }).startTime ?? Date.now();
+    const startTime =
+      (req as unknown as { startTime: number }).startTime ?? Date.now();
     const durationMs = Date.now() - startTime;
+
     logger.info(
       {
         type: "http",
@@ -67,7 +74,7 @@ export async function buildApp(): Promise<FastifyInstance> {
         status: reply.statusCode,
         durationMs,
         ip: req.ip,
-        userId: (req as unknown as { userId?: number }).userId ?? null,
+        userId: req.authUser?.id ?? null,
       },
       `${req.method} ${req.url} → ${reply.statusCode} (${durationMs}ms)`,
     );
@@ -88,7 +95,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ==========================================================
-  // 🧩 PLUGINS
+  // 🧩 REGISTRO DE PLUGINS
   // ==========================================================
   await app.register(corsPlugin, { origins: corsOrigins });
   await app.register(helmetPlugin);
@@ -96,8 +103,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(cookiePlugin);
   await app.register(rateLimitPlugin);
 
+  // ⚠️  authPlugin PRECISA vir DEPOIS dos plugins base
+  //    e ANTES das rotas que usam `app.requireAuth`.
+  await app.register(authPlugin);
+
   // ==========================================================
-  // 🛣️ ROTAS
+  // 🛣️ REGISTRO DE ROTAS
   // ==========================================================
   await app.register(healthRoutes, { prefix: "/" });
   await app.register(webappRoutes, { prefix: "/webapp" });
@@ -155,7 +166,7 @@ async function start(): Promise<void> {
     `🚀 Iniciando ${env.APP_NAME} API v${env.APP_VERSION} (env=${env.ENV})`,
   );
 
-  // ---------- Conexões ----------
+  // ---------- Postgres ----------
   try {
     await connectPrisma();
   } catch (err) {
@@ -163,6 +174,7 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
+  // ---------- Redis ----------
   try {
     await connectRedis();
   } catch (err) {
