@@ -1,8 +1,6 @@
 """
 Larizinha Store — Camada de Banco de Dados (Bot)
 Espelha 1:1 o schema Prisma (src/prisma/schema.prisma).
-Prisma é a fonte de verdade das MIGRATIONS — este arquivo só DECLARA os models
-para o bot Python poder ler/escrever nas mesmas tabelas/colunas.
 """
 from __future__ import annotations
 
@@ -32,21 +30,15 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from bot.config import settings
 
 
-# ============================================================
-# 🧱 BASE DECLARATIVA
-# ============================================================
 class Base(DeclarativeBase):
     """Base declarativa SQLAlchemy 2.x."""
 
 
-# ============================================================
-# 🎛️ ENUMS
-# ============================================================
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     BLOCKED = "BLOCKED"
@@ -131,9 +123,6 @@ class BroadcastStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
-# ============================================================
-# 👥 USERS
-# ============================================================
 class User(Base):
     __tablename__ = "users"
 
@@ -199,9 +188,6 @@ class User(Base):
     )
 
 
-# ============================================================
-# 👑 ADMINS & ROLES
-# ============================================================
 class Role(Base):
     __tablename__ = "roles"
 
@@ -241,9 +227,6 @@ class Admin(Base):
     )
 
 
-# ============================================================
-# 📦 CATÁLOGO
-# ============================================================
 class Category(Base):
     __tablename__ = "categories"
 
@@ -367,9 +350,6 @@ class ProductCredential(Base):
     __table_args__ = (Index("ix_product_credentials_product_used", "product_id", "used"),)
 
 
-# ============================================================
-# 🛒 ORDERS
-# ============================================================
 class Order(Base):
     __tablename__ = "orders"
 
@@ -430,9 +410,6 @@ class OrderItem(Base):
     )
 
 
-# ============================================================
-# 💳 PIX / TRANSAÇÕES
-# ============================================================
 class PixCharge(Base):
     __tablename__ = "pix_charges"
 
@@ -492,9 +469,6 @@ class Transaction(Base):
     )
 
 
-# ============================================================
-# 💸 WITHDRAWS
-# ============================================================
 class Withdraw(Base):
     __tablename__ = "withdraws"
 
@@ -532,9 +506,6 @@ class Withdraw(Base):
     )
 
 
-# ============================================================
-# 🎁 GIFT CARDS
-# ============================================================
 class GiftCard(Base):
     __tablename__ = "gift_cards"
 
@@ -571,9 +542,6 @@ class GiftCardRedemption(Base):
     __table_args__ = (Index("ix_gift_card_redemptions_user_id", "user_id"),)
 
 
-# ============================================================
-# 🎟️ CUPONS
-# ============================================================
 class Coupon(Base):
     __tablename__ = "coupons"
 
@@ -614,9 +582,6 @@ class CouponUsage(Base):
     )
 
 
-# ============================================================
-# 👥 COMISSÕES
-# ============================================================
 class Commission(Base):
     __tablename__ = "commissions"
 
@@ -649,9 +614,6 @@ class Commission(Base):
     )
 
 
-# ============================================================
-# 📡 CANAIS / PROMOÇÕES
-# ============================================================
 class Channel(Base):
     __tablename__ = "channels"
 
@@ -693,9 +655,6 @@ class Promotion(Base):
     )
 
 
-# ============================================================
-# 📨 BROADCASTS
-# ============================================================
 class Broadcast(Base):
     __tablename__ = "broadcasts"
 
@@ -724,9 +683,6 @@ class Broadcast(Base):
     )
 
 
-# ============================================================
-# ✏️ MENSAGENS E BOTÕES EDITÁVEIS
-# ============================================================
 class MessageTemplate(Base):
     __tablename__ = "message_templates"
 
@@ -794,9 +750,6 @@ class ButtonTemplate(Base):
     )
 
 
-# ============================================================
-# ⚙️ SETTINGS (KV global)
-# ============================================================
 class Setting(Base):
     __tablename__ = "settings"
 
@@ -810,9 +763,6 @@ class Setting(Base):
     )
 
 
-# ============================================================
-# 🤖 AUTOMAÇÕES
-# ============================================================
 class Automation(Base):
     __tablename__ = "automations"
 
@@ -830,9 +780,6 @@ class Automation(Base):
     )
 
 
-# ============================================================
-# 🔒 LOCKS
-# ============================================================
 class Lock(Base):
     __tablename__ = "locks"
 
@@ -852,9 +799,6 @@ class Lock(Base):
     __table_args__ = (Index("ix_locks_expires_at", "expires_at"),)
 
 
-# ============================================================
-# 🚫 BLACKLIST
-# ============================================================
 class Blacklist(Base):
     __tablename__ = "blacklist"
 
@@ -867,9 +811,6 @@ class Blacklist(Base):
     )
 
 
-# ============================================================
-# 🎫 TICKETS
-# ============================================================
 class Ticket(Base):
     __tablename__ = "tickets"
 
@@ -903,9 +844,6 @@ class UserTicket(Base):
     )
 
 
-# ============================================================
-# 🎮 JOGOS
-# ============================================================
 class Game(Base):
     __tablename__ = "games"
 
@@ -940,9 +878,6 @@ class GameSession(Base):
     __table_args__ = (Index("ix_game_sessions_user_id", "user_id"),)
 
 
-# ============================================================
-# 🛡️ SEGURANÇA / ALERTAS
-# ============================================================
 class SecurityEvent(Base):
     __tablename__ = "security_events"
 
@@ -978,9 +913,6 @@ class Alert(Base):
     __table_args__ = (Index("ix_alerts_category_resolved", "category", "resolved"),)
 
 
-# ============================================================
-# 📜 LOGS
-# ============================================================
 class Log(Base):
     __tablename__ = "logs"
 
@@ -1001,9 +933,6 @@ class Log(Base):
     )
 
 
-# ============================================================
-# 💾 BACKUPS
-# ============================================================
 class Backup(Base):
     __tablename__ = "backups"
 
@@ -1017,15 +946,11 @@ class Backup(Base):
     )
 
 
-# ============================================================
-# ⚙️ ENGINE / SESSION FACTORY
-# ============================================================
 _engine: Optional[AsyncEngine] = None
 _session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 def get_engine() -> AsyncEngine:
-    """Retorna a engine assíncrona (singleton)."""
     global _engine
     if _engine is None:
         _engine = create_async_engine(
@@ -1042,7 +967,6 @@ def get_engine() -> AsyncEngine:
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
-    """Retorna a factory de sessões (singleton)."""
     global _session_factory
     if _session_factory is None:
         _session_factory = async_sessionmaker(
@@ -1056,7 +980,6 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 @asynccontextmanager
 async def session_scope() -> AsyncGenerator[AsyncSession, None]:
-    """Context manager transacional."""
     factory = get_session_factory()
     session: AsyncSession = factory()
     try:
@@ -1070,7 +993,6 @@ async def session_scope() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency-injection style."""
     factory = get_session_factory()
     async with factory() as session:
         try:
@@ -1081,17 +1003,13 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """
-    Inicialização: cria TODAS as tabelas se ainda não existirem.
-    Chama Base.metadata.create_all de forma assíncrona.
-    """
+    """Cria todas as tabelas se ainda não existirem."""
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
-    """Fecha engine e descarta cache de sessão."""
     global _engine, _session_factory
     if _engine is not None:
         await _engine.dispose()
@@ -1100,7 +1018,6 @@ async def close_db() -> None:
 
 
 async def healthcheck() -> bool:
-    """Retorna True se a conexão com o banco está OK."""
     try:
         async with get_engine().connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -1110,7 +1027,6 @@ async def healthcheck() -> bool:
 
 
 __all__ = [
-    # Base
     "Base",
     "get_engine",
     "get_session_factory",
@@ -1119,7 +1035,6 @@ __all__ = [
     "init_db",
     "close_db",
     "healthcheck",
-    # Enums
     "UserStatus",
     "PaymentMethod",
     "OrderStatus",
@@ -1131,7 +1046,6 @@ __all__ = [
     "CommissionStatus",
     "ChannelType",
     "BroadcastStatus",
-    # Models
     "User",
     "Admin",
     "Role",
